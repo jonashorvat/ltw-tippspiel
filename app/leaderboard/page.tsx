@@ -17,6 +17,13 @@ const STATUS_LABEL: Record<string, string> = {
 export default function LeaderboardPage() {
   const [data, setData] = useState<ApiData | null>(null)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  const [myName, setMyName] = useState<string>('')
+
+  // Load saved name from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('tippspiel_name')
+    if (saved) setMyName(saved)
+  }, [])
 
   const fetchData = useCallback(async () => {
     try {
@@ -41,6 +48,10 @@ export default function LeaderboardPage() {
   const matchStatus = data?.results?.matchStatus
   const statusLabel = matchStatus ? STATUS_LABEL[matchStatus] ?? matchStatus : 'Warte auf Spiel...'
 
+  // Find own rank
+  const myRank = myName ? participants.findIndex(p => p.name.toLowerCase() === myName.toLowerCase()) : -1
+  const myParticipant = myRank >= 0 ? participants[myRank] : null
+
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg)' }}>
       <nav className="topnav">
@@ -55,7 +66,7 @@ export default function LeaderboardPage() {
           )}
           {lastUpdate && (
             <span style={{fontSize:11,color:'var(--muted)'}}>
-              Aktualisiert {lastUpdate.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+              {lastUpdate.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
             </span>
           )}
         </div>
@@ -69,9 +80,7 @@ export default function LeaderboardPage() {
             <div className="match-teamname">Deutschland</div>
           </div>
           {liveScore ? (
-            <div className="match-live-score">
-              {liveScore.home} : {liveScore.away}
-            </div>
+            <div className="match-live-score">{liveScore.home} : {liveScore.away}</div>
           ) : (
             <div className="match-vs">VS</div>
           )}
@@ -89,6 +98,35 @@ export default function LeaderboardPage() {
           <span>{resolved}/{total} Fragen aufgelöst</span>
         </div>
       </div>
+
+      {/* MY POSITION BANNER — shown when own name is saved */}
+      {myParticipant && (
+        <div style={{
+          background:'linear-gradient(135deg,rgba(255,206,0,.18),rgba(255,206,0,.06))',
+          borderBottom:'1px solid rgba(255,206,0,.3)',
+          padding:'12px 20px',
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+          flexWrap:'wrap', gap:8,
+        }}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <span style={{fontSize:20}}>👤</span>
+            <div>
+              <div style={{fontSize:12,color:'var(--muted)',fontWeight:600,textTransform:'uppercase',letterSpacing:'.5px'}}>Deine Position</div>
+              <div style={{fontWeight:700,fontSize:16}}>{myParticipant.name}</div>
+            </div>
+          </div>
+          <div style={{display:'flex',gap:20,alignItems:'center'}}>
+            <div style={{textAlign:'center'}}>
+              <div style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:28,fontWeight:900,color:'var(--accent)',lineHeight:1}}>{myParticipant.points}</div>
+              <div style={{fontSize:11,color:'var(--muted)'}}>Punkte</div>
+            </div>
+            <div style={{textAlign:'center'}}>
+              <div style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:28,fontWeight:900,lineHeight:1}}>#{myRank+1}</div>
+              <div style={{fontSize:11,color:'var(--muted)'}}>Platz</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PROGRESS */}
       <div style={{padding:'12px 16px 0',maxWidth:700,margin:'0 auto'}}>
@@ -123,16 +161,25 @@ export default function LeaderboardPage() {
               <div style={{textAlign:'center'}}>Tipps</div>
             </div>
             {participants.map((p, i) => {
+              const isMe = myName && p.name.toLowerCase() === myName.toLowerCase()
               const rankClass = i===0?'gold':i===1?'silver':i===2?'bronze':''
               const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':null
               const answeredCount = Object.keys(p.answers ?? {}).length
               return (
-                <div key={p.id} className={`lb-row ${rankClass}`}>
+                <div key={p.id} className={`lb-row ${rankClass}`} style={isMe ? {
+                  border:'2px solid var(--accent)',
+                  background:'linear-gradient(135deg,rgba(255,206,0,.2),rgba(255,206,0,.08))',
+                  transform:'scale(1.02)',
+                  boxShadow:'0 0 20px rgba(255,206,0,.15)',
+                } : {}}>
                   <div className="lb-rank">{medal ?? (i+1)}</div>
-                  <div className="lb-name">{p.name}</div>
+                  <div className="lb-name">
+                    {p.name}
+                    {isMe && <span style={{marginLeft:6,fontSize:11,color:'var(--accent)',fontWeight:700}}>← DU</span>}
+                  </div>
                   <div className="lb-pts">{p.points}</div>
                   <div className="lb-correct">{p.correct}✓</div>
-                  <div className="lb-q">{answeredCount}/8</div>
+                  <div className="lb-q">{answeredCount}/10</div>
                 </div>
               )
             })}

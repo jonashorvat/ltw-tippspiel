@@ -56,6 +56,7 @@ export default function GuestPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Fehler beim Absenden'); setLoading(false); return }
+      localStorage.setItem('tippspiel_name', name.trim())
       setSubmittedName(name.trim()); setStep('done')
     } catch { setError('Netzwerkfehler – bitte nochmal versuchen.') }
     setLoading(false)
