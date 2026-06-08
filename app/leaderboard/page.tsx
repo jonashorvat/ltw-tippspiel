@@ -15,17 +15,18 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 const PRIZES: Record<number, { emoji: string; label: string; color: string; border: string; bg: string }> = {
-  1: { emoji: '🧥', label: 'Pulli',         color: '#FFD700', border: 'rgba(255,215,0,.5)',   bg: 'rgba(255,215,0,.12)' },
-  2: { emoji: '👕', label: 'Shirt',          color: '#C0C0D8', border: 'rgba(192,192,216,.5)', bg: 'rgba(192,192,216,.1)' },
-  3: { emoji: '🧦', label: 'Socken',         color: '#CD7F32', border: 'rgba(205,127,50,.5)',  bg: 'rgba(205,127,50,.1)' },
-  4: { emoji: '🏷️', label: '50% Rabatt',    color: '#00d67f', border: 'rgba(0,214,127,.4)',   bg: 'rgba(0,214,127,.1)' },
-  5: { emoji: '🏷️', label: '25% Rabatt',    color: '#00d67f', border: 'rgba(0,214,127,.3)',   bg: 'rgba(0,214,127,.08)' },
+  1: { emoji: '🧥', label: 'Pulli',      color: '#FFD700', border: 'rgba(255,215,0,.5)',   bg: 'rgba(255,215,0,.12)' },
+  2: { emoji: '👕', label: 'Shirt',       color: '#C0C0D8', border: 'rgba(192,192,216,.5)', bg: 'rgba(192,192,216,.1)' },
+  3: { emoji: '🧦', label: 'Socken',      color: '#CD7F32', border: 'rgba(205,127,50,.5)',  bg: 'rgba(205,127,50,.1)' },
+  4: { emoji: '🏷️', label: '50% Rabatt', color: '#00d67f', border: 'rgba(0,214,127,.4)',   bg: 'rgba(0,214,127,.1)' },
+  5: { emoji: '🏷️', label: '25% Rabatt', color: '#00d67f', border: 'rgba(0,214,127,.3)',   bg: 'rgba(0,214,127,.08)' },
 }
+
+export default function LeaderboardPage() {
   const [data, setData] = useState<ApiData | null>(null)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [myName, setMyName] = useState<string>('')
 
-  // Load saved name from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('tippspiel_name')
     if (saved) setMyName(saved)
@@ -53,13 +54,12 @@ const PRIZES: Record<number, { emoji: string; label: string; color: string; bord
   const liveScore = data?.results?.liveScore
   const matchStatus = data?.results?.matchStatus
   const statusLabel = matchStatus ? STATUS_LABEL[matchStatus] ?? matchStatus : 'Warte auf Spiel...'
-
-  // Find own rank
   const myRank = myName ? participants.findIndex(p => p.name.toLowerCase() === myName.toLowerCase()) : -1
   const myParticipant = myRank >= 0 ? participants[myRank] : null
 
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg)' }}>
+
       <nav className="topnav">
         <div className="nav-logo">
           <span className="nav-logo-text">LightTheWorld</span>
@@ -78,7 +78,6 @@ const PRIZES: Record<number, { emoji: string; label: string; color: string; bord
         </div>
       </nav>
 
-      {/* MATCH STATUS BAR */}
       <div className="match-header" style={{padding:'16px 16px 14px'}}>
         <div className="match-teams-row" style={{marginBottom:6}}>
           <div style={{textAlign:'center'}}>
@@ -105,7 +104,6 @@ const PRIZES: Record<number, { emoji: string; label: string; color: string; bord
         </div>
       </div>
 
-      {/* MY POSITION BANNER — shown when own name is saved */}
       {myParticipant && (
         <div style={{
           background:'linear-gradient(135deg,rgba(255,206,0,.18),rgba(255,206,0,.06))',
@@ -134,7 +132,6 @@ const PRIZES: Record<number, { emoji: string; label: string; color: string; bord
         </div>
       )}
 
-      {/* PROGRESS */}
       <div style={{padding:'12px 16px 0',maxWidth:700,margin:'0 auto'}}>
         <div className="progress-bar">
           <div className="progress-fill" style={{width:`${(resolved/total)*100}%`}} />
@@ -151,7 +148,6 @@ const PRIZES: Record<number, { emoji: string; label: string; color: string; bord
         </div>
       </div>
 
-      {/* LEADERBOARD */}
       <div style={{maxWidth:700,margin:'16px auto',padding:'0 16px 40px'}}>
         {participants.length === 0 ? (
           <div style={{textAlign:'center',padding:'60px 0',color:'var(--muted)'}}>
@@ -159,44 +155,43 @@ const PRIZES: Record<number, { emoji: string; label: string; color: string; bord
             <div style={{fontSize:16}}>Noch keine Tipps abgegeben</div>
           </div>
         ) : (
-          <>
+          <div>
             <div className="lb-row lb-header" style={{background:'transparent',border:'none',padding:'4px 16px'}}>
-              <div>#</div><div>Name</div>
+              <div>#</div>
+              <div>Name</div>
               <div style={{textAlign:'right'}}>Punkte</div>
               <div style={{textAlign:'center'}}>Richtig</div>
               <div style={{textAlign:'center'}}>Tipps</div>
             </div>
             {participants.map((p, i) => {
-              const isMe = myName && p.name.toLowerCase() === myName.toLowerCase()
-              const rankClass = i===0?'gold':i===1?'silver':i===2?'bronze':''
-              const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':null
+              const isMe = myName !== '' && p.name.toLowerCase() === myName.toLowerCase()
+              const rankClass = i===0 ? 'gold' : i===1 ? 'silver' : i===2 ? 'bronze' : ''
+              const medal = i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : null
               const answeredCount = Object.keys(p.answers ?? {}).length
               const prize = PRIZES[i+1]
+              const rowStyle = isMe ? {
+                border:'2px solid var(--accent)',
+                background:'linear-gradient(135deg,rgba(255,206,0,.2),rgba(255,206,0,.08))',
+                transform:'scale(1.02)',
+                boxShadow:'0 0 20px rgba(255,206,0,.15)',
+              } : prize ? {
+                background: prize.bg,
+                borderColor: prize.border,
+              } : {}
               return (
-                <div key={p.id} className={`lb-row ${rankClass}`} style={isMe ? {
-                  border:'2px solid var(--accent)',
-                  background:'linear-gradient(135deg,rgba(255,206,0,.2),rgba(255,206,0,.08))',
-                  transform:'scale(1.02)',
-                  boxShadow:'0 0 20px rgba(255,206,0,.15)',
-                } : prize ? {
-                  background: prize.bg,
-                  borderColor: prize.border,
-                } : {}}>
+                <div key={p.id} className={`lb-row ${rankClass}`} style={rowStyle}>
                   <div className="lb-rank">{medal ?? (i+1)}</div>
                   <div className="lb-name" style={{display:'flex',flexDirection:'column',gap:3}}>
                     <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                      {p.name}
+                      <span>{p.name}</span>
                       {isMe && <span style={{fontSize:11,color:'var(--accent)',fontWeight:700}}>← DU</span>}
                     </div>
                     {prize && (
                       <span style={{
                         display:'inline-flex',alignItems:'center',gap:4,
-                        fontSize:11,fontWeight:700,
-                        color: prize.color,
-                        background: prize.bg,
-                        border:`1px solid ${prize.border}`,
-                        borderRadius:20,padding:'1px 8px',
-                        width:'fit-content',
+                        fontSize:11,fontWeight:700,color:prize.color,
+                        background:prize.bg,border:`1px solid ${prize.border}`,
+                        borderRadius:20,padding:'1px 8px',width:'fit-content',
                       }}>
                         {prize.emoji} {prize.label}
                       </span>
@@ -208,25 +203,24 @@ const PRIZES: Record<number, { emoji: string; label: string; color: string; bord
                 </div>
               )
             })}
-          </>
+          </div>
         )}
 
-        {/* PRIZES LEGEND */}
         <div style={{marginTop:24,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'16px 20px'}}>
           <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',color:'var(--muted)',marginBottom:12}}>🎁 Preise</div>
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             {Object.entries(PRIZES).map(([rank, prize]) => (
               <div key={rank} style={{display:'flex',alignItems:'center',gap:10}}>
-                <span style={{
-                  fontFamily:'Barlow Condensed,sans-serif',fontWeight:900,fontSize:16,
-                  width:24,textAlign:'center',color:prize.color,
-                }}>{rank === '1' ? '🥇' : rank === '2' ? '🥈' : rank === '3' ? '🥉' : `#${rank}`}</span>
+                <span style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:900,fontSize:16,width:24,textAlign:'center',color:prize.color}}>
+                  {rank === '1' ? '🥇' : rank === '2' ? '🥈' : rank === '3' ? '🥉' : `#${rank}`}
+                </span>
                 <span style={{fontSize:13,fontWeight:600,color:prize.color}}>{prize.emoji} {prize.label}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
+
     </div>
   )
 }
