@@ -1,0 +1,371 @@
+'use client'
+// app/admin/page.tsx
+import { useState, useEffect, useCallback } from 'react'
+import { QUESTIONS } from '@/lib/types'
+import type { Participant, MatchResult } from '@/lib/types'
+
+const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY ?? 'ltw-admin-2024'
+const DEMO_NAMES = ['Max Mustermann','Lena Koch','Tom Bauer','Sarah Braun','Kevin Wolf','Anna Klein','Florian Schwarz','Maria Weiß','Ben Schäfer','Julia Richter','Chris Berg','Laura Vogt','David Fuchs','Eva Hartmann','Nico Simon','Mia Lange','Jan Hoffmann','Sophie Krause','Felix Meyer','Hannah Zimmermann']
+
+const headers = { 'Content-Type':'application/json', 'x-admin-key':ADMIN_KEY }
+
+interface AdminData {
+  results: MatchResult
+  participants: Participant[]
+  source: 'live' | 'manual'
+}
+
+function randomAnswer(q: typeof QUESTIONS[0]): string {
+  if (q.type === 'score') return `${Math.floor(Math.random()*6)}:${Math.floor(Math.random()*4)}`
+  if (q.type === 'yn') return Math.random() > 0.5 ? 'Ja' : 'Nein'
+  if (q.type === 'number') {
+    if (q.id === 5) return String(Math.floor(Math.random()*8)+1)
+    if (q.id === 6) return String(Math.floor(Math.random()*15)+8)
+    return String(Math.floor(Math.random()*10))
+  }
+  if (q.type === 'multiselect') {
+    const opts = q.options ?? []
+    const count = Math.floor(Math.random()*3)+1
+    return [...opts].sort(()=>Math.random()-.5).slice(0,count).join(',')
+  }
+  return ''
+}
+
+type AdminTab = 'overview' | 'resolve' | 'data'
+
+export default function AdminPage() {
+  const [data, setData] = useState<AdminData | null>(null)
+  const [tab, setTab] = useState<AdminTab>('overview')
+  const [manualAnswers, setManualAnswers] = useState<Record<number,string>>({})
+  const [toast, setToast] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(()=>setToast(''),2500) }
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin', { headers: { 'x-admin-key': ADMIN_KEY }, cache: 'no-store' })
+      if (res.ok) {
+        const d = await res.json() as AdminData
+        setData(d)
+        setManualAnswers(d.results?.answers ?? {})
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => { fetchData(); const t = setInterval(fetchData, 8000); return ()=>clearInterval(t) }, [fetchData])
+
+  const post = async (body: object) => {
+    setLoading(true)
+    try {
+      await fetch('/api/admin', { method:'POST', headers, body: JSON.stringify(body) })
+      await fetchData()
+    } catch {}
+    setLoading(false)
+  }
+
+  const toggleSource = async (source: 'live' | 'manual') => {
+    await post({ action:'set-source', source })
+    showToast(source === 'live' ? '🔴 Live-Daten aktiviert' : '✏️ Manuelle Eingabe aktiviert')
+  }
+
+  const setAnswer = async (qId: number, answer: string) => {
+    const updated = { ...manualAnswers, [qId]: answer }
+    setManualAnswers(updated)
+    await post({ action:'set-answer', questionId: qId, answer })
+    showToast(`Frage ${qId} aufgelöst ✓`)
+  }
+
+  const addBulkDemo = async (count: number) => {
+    setLoading(true)
+    const used = new Set((data?.participants ?? []).map(p => p.name))
+    const pool = [...DEMO_NAMES].sort(()=>Math.random()-.5)
+    for (let i = 0; i < count; i++) {
+      let name = pool[i % pool.length] + (i >= pool.length ? ' '+(i+1) : '')
+      while (used.has(name)) name += '_'
+      used.add(name)
+      const answers: Record<number,string> = {}
+      QUESTIONS.forEach(q => { answers[q.id] = randomAnswer(q) })
+      await fetch('/api/admin', { method:'POST', headers, body: JSON.stringify({ action:'add-participant', name, answers }) })
+    }
+    await fetchData(); setLoading(false)
+    showToast(`${count} Test-Teilnehmer hinzugefügt ✓`)
+  }
+
+  const clearParticipants = async () => {
+    if (!confirm('Alle Teilnehmer löschen?')) return
+    await post({ action:'clear-participants' }); showToast('Teilnehmer gelöscht')
+  }
+  const clearAll = async () => {
+    if (!confirm('Alle Daten (Teilnehmer + Ergebnisse) löschen?')) return
+    await post({ action:'clear' }); showToast('Alle Daten gelöscht')
+  }
+
+  const resolvedCount = QUESTIONS.filter(q => data?.results?.answers?.[q.id] != null).length
+  const participantCount = data?.participants?.length ?? 0
+  const source = data?.source ?? 'manual'
+  const isLive = source === 'live'
+
+  return (
+    <div style={{minHeight:'100vh',background:'var(--bg)'}}>
+      {/* NAV */}
+      <nav className="topnav">
+        <div className="nav-logo">
+          <span className="nav-logo-text">LightTheWorld</span>
+          <div className="nav-logo-divider" />
+          <span className="nav-logo-sub">ADMIN</span>
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          <a href="/leaderboard" className="btn btn-ghost btn-sm" target="_blank">🏆 Leaderboard</a>
+          <a href="/guest" className="btn btn-ghost btn-sm" target="_blank">📱 Gast-View</a>
+        </div>
+      </nav>
+
+      <div className="container-wide">
+        {/* STATS */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))',gap:10,margin:'20px 0'}}>
+          {[
+            {label:'Teilnehmer', value:participantCount},
+            {label:'Aufgelöst', value:`${resolvedCount}/8`},
+            {label:'Führend', value:data?.participants?.[0]?.name?.split(' ')[0] ?? '–'},
+            {label:'Max Punkte', value:data?.participants?.[0]?.points ?? 0},
+          ].map(s => (
+            <div key={s.label} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'14px 16px',textAlign:'center'}}>
+              <div style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:28,fontWeight:900,color:'var(--accent)'}}>{s.value}</div>
+              <div style={{fontSize:11,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.5px',marginTop:2}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* DATA SOURCE TOGGLE */}
+        <div className="card">
+          <div className="card-title">Datenquelle</div>
+          <div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
+            <div className="toggle-wrap" style={{maxWidth:320}}>
+              <button className={`toggle-opt ${!isLive?'active':''}`} onClick={()=>toggleSource('manual')}>
+                ✏️ Manuelle Eingabe
+              </button>
+              <button className={`toggle-opt ${isLive?'active':''}`} onClick={()=>toggleSource('live')}>
+                🔴 Live API
+              </button>
+            </div>
+            <span className={`badge ${isLive?'badge-live':'badge-manual'}`}>
+              {isLive ? '● LIVE – API-Football' : '✏ Manuelle Eingabe aktiv'}
+            </span>
+            {isLive && (
+              <span style={{fontSize:12,color:'var(--muted)'}}>
+                Automatisch alle 60s · Cron läuft
+              </span>
+            )}
+          </div>
+          {isLive && data?.results?.matchStatus && (
+            <div style={{marginTop:12,display:'flex',gap:16,flexWrap:'wrap',fontSize:13}}>
+              <span style={{color:'var(--muted)'}}>Status: <b style={{color:'var(--text)'}}>{data.results.matchStatus}</b></span>
+              {data.results.liveScore && (
+                <span style={{color:'var(--muted)'}}>Live: <b style={{color:'var(--accent)',fontFamily:'Barlow Condensed',fontSize:16}}>{data.results.liveScore.home}:{data.results.liveScore.away}</b></span>
+              )}
+              <span style={{color:'var(--muted)'}}>Zuletzt: {new Date(data.results.lastUpdated).toLocaleTimeString('de-DE')}</span>
+            </div>
+          )}
+        </div>
+
+        {/* INNER TABS */}
+        <div style={{display:'flex',borderBottom:'1px solid var(--border)',marginBottom:20,gap:0}}>
+          {(['overview','resolve','data'] as AdminTab[]).map(t => (
+            <button key={t} onClick={()=>setTab(t)} style={{
+              padding:'10px 18px',fontSize:13,fontWeight:600,cursor:'pointer',
+              color:tab===t?'var(--accent)':'var(--muted)',
+              borderBottom:tab===t?'2px solid var(--accent)':'2px solid transparent',
+              background:'transparent',border:'none',borderTop:'none',borderLeft:'none',borderRight:'none',
+              fontFamily:'Barlow,sans-serif',marginBottom:'-1px',transition:'color .2s',
+            }}>
+              {t==='overview'?'📊 Übersicht':t==='resolve'?'✅ Auflösen':'📋 Daten'}
+            </button>
+          ))}
+        </div>
+
+        {/* OVERVIEW TAB */}
+        {tab === 'overview' && (
+          <>
+            <div className="card">
+              <div className="card-title">🧪 Test-Teilnehmer</div>
+              <p style={{fontSize:13,color:'var(--muted)',marginBottom:14}}>Füge Dummy-Teilnehmer hinzu um das System zu testen.</p>
+              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                {[1,5,10,30].map(n => (
+                  <button key={n} className="btn btn-ghost btn-sm" onClick={()=>addBulkDemo(n)} disabled={loading}>
+                    + {n} zufällige
+                  </button>
+                ))}
+                <button className="btn btn-danger btn-sm" onClick={clearParticipants} disabled={loading}>
+                  🗑 Teilnehmer löschen
+                </button>
+                <button className="btn btn-danger btn-sm" onClick={clearAll} disabled={loading}>
+                  💣 Alles löschen
+                </button>
+              </div>
+            </div>
+
+            {/* TOP 10 preview */}
+            {participantCount > 0 && (
+              <div className="card">
+                <div className="card-title">Top Teilnehmer</div>
+                <div className="lb-row lb-header" style={{background:'transparent',border:'none',padding:'4px 16px'}}>
+                  <div>#</div><div>Name</div>
+                  <div style={{textAlign:'right'}}>Pkt</div>
+                  <div style={{textAlign:'center'}}>✓</div>
+                  <div style={{textAlign:'center'}}>Tipps</div>
+                </div>
+                {(data?.participants ?? []).slice(0,10).map((p,i) => (
+                  <div key={p.id} className={`lb-row ${i===0?'gold':i===1?'silver':i===2?'bronze':''}`} style={{fontSize:14}}>
+                    <div className="lb-rank" style={{fontSize:16}}>{i+1}</div>
+                    <div className="lb-name" style={{fontSize:14}}>{p.name}</div>
+                    <div className="lb-pts" style={{fontSize:18}}>{p.points}</div>
+                    <div className="lb-correct" style={{fontSize:12}}>{p.correct}</div>
+                    <div className="lb-q">{Object.keys(p.answers??{}).length}/8</div>
+                  </div>
+                ))}
+                {participantCount > 10 && (
+                  <p style={{fontSize:12,color:'var(--muted)',textAlign:'center',marginTop:8}}>
+                    … und {participantCount-10} weitere
+                  </p>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* RESOLVE TAB */}
+        {tab === 'resolve' && (
+          <div className="card">
+            <div className="card-title">Richtige Antworten eintragen</div>
+            <p style={{fontSize:13,color:'var(--muted)',marginBottom:16}}>
+              {isLive ? 'Live-Modus aktiv – Antworten werden automatisch gesetzt. Du kannst trotzdem manuell überschreiben.' : 'Trage die korrekten Antworten ein. Punkte werden sofort neu berechnet.'}
+            </p>
+            {QUESTIONS.map(q => {
+              const current = manualAnswers[q.id]
+              const resolved = current != null && current !== ''
+              return (
+                <div key={q.id} style={{
+                  background:'var(--surface2)', borderRadius:8, padding:14, marginBottom:10,
+                  border:`1px solid ${resolved?'rgba(0,214,127,.3)':'var(--border)'}`,
+                }}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                    <div>
+                      <span style={{fontSize:11,color:'var(--muted)',fontWeight:600}}>F{q.id} · {q.points}Pkt</span>
+                      <div style={{fontSize:15,fontWeight:600,marginTop:2}}>{q.text}</div>
+                    </div>
+                    {resolved && <span className="badge badge-resolved">✓ {current}</span>}
+                  </div>
+
+                  {q.type === 'score' && (
+                    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+                      <div className="score-wrap">
+                        <input type="number" min={0} max={30} className="score-box" style={{width:52,fontSize:20}}
+                          placeholder="0" value={manualAnswers[q.id]?.split(':')[0]??''}
+                          onChange={e=>setManualAnswers(p=>({...p,[q.id]:e.target.value+':'+(p[q.id]?.split(':')[1]??'')}))}
+                        />
+                        <span className="score-colon">:</span>
+                        <input type="number" min={0} max={30} className="score-box" style={{width:52,fontSize:20}}
+                          placeholder="0" value={manualAnswers[q.id]?.split(':')[1]??''}
+                          onChange={e=>setManualAnswers(p=>({...p,[q.id]:(p[q.id]?.split(':')[0]??'')+':'+e.target.value}))}
+                        />
+                      </div>
+                      <button className="btn btn-green btn-sm" onClick={()=>setAnswer(q.id, manualAnswers[q.id]??'')} disabled={loading}>
+                        ✓ Setzen
+                      </button>
+                    </div>
+                  )}
+
+                  {(q.type==='yn') && (
+                    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+                      <div className="option-grid" style={{flex:1}}>
+                        {(q.options??[]).map(opt=>(
+                          <button key={opt}
+                            className={`option-btn ${manualAnswers[q.id]===opt?'selected':''}`}
+                            onClick={()=>setAnswer(q.id,opt)} style={{fontSize:13,padding:'8px'}}
+                          >{opt}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {q.type==='number' && (
+                    <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                      <input type="number" min={0} max={99} className="score-box" style={{width:70,fontSize:20}}
+                        placeholder="0" value={manualAnswers[q.id]??''}
+                        onChange={e=>setManualAnswers(p=>({...p,[q.id]:e.target.value}))}
+                      />
+                      <button className="btn btn-green btn-sm" onClick={()=>setAnswer(q.id, manualAnswers[q.id]??'')} disabled={loading}>
+                        ✓ Setzen
+                      </button>
+                    </div>
+                  )}
+
+                  {q.type==='multiselect' && (
+                    <div>
+                      <div className="ms-grid" style={{marginBottom:8}}>
+                        {(q.options??[]).map(opt=>{
+                          const sel = (manualAnswers[q.id]??'').split(',').includes(opt)
+                          return (
+                            <button key={opt}
+                              className={`ms-btn ${sel?'selected':''}`}
+                              style={{fontSize:12,padding:'6px 10px'}}
+                              onClick={()=>{
+                                const cur=(manualAnswers[q.id]??'').split(',').filter(Boolean)
+                                const next=cur.includes(opt)?cur.filter(v=>v!==opt):[...cur,opt]
+                                setManualAnswers(p=>({...p,[q.id]:next.join(',')}))
+                              }}
+                            >{opt}</button>
+                          )
+                        })}
+                      </div>
+                      <button className="btn btn-green btn-sm" onClick={()=>setAnswer(q.id, manualAnswers[q.id]??'')} disabled={loading}>
+                        ✓ Setzen
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* DATA TAB */}
+        {tab === 'data' && (
+          <div className="card">
+            <div className="card-title">Rohdaten ({participantCount} Teilnehmer)</div>
+            <div style={{overflowX:'auto',fontSize:12}}>
+              <table style={{width:'100%',borderCollapse:'collapse',minWidth:600}}>
+                <thead>
+                  <tr style={{color:'var(--muted)',borderBottom:'1px solid var(--border)'}}>
+                    <th style={{padding:'6px 8px',textAlign:'left'}}>Name</th>
+                    <th style={{padding:'6px 8px',textAlign:'center'}}>Pkt</th>
+                    <th style={{padding:'6px 8px',textAlign:'center'}}>✓</th>
+                    {QUESTIONS.map(q=><th key={q.id} style={{padding:'6px 8px',textAlign:'center'}}>F{q.id}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data?.participants??[]).map(p=>(
+                    <tr key={p.id} style={{borderTop:'1px solid var(--border)'}}>
+                      <td style={{padding:'6px 8px',fontWeight:500}}>{p.name}</td>
+                      <td style={{padding:'6px 8px',textAlign:'center',color:'var(--accent)',fontWeight:700}}>{p.points}</td>
+                      <td style={{padding:'6px 8px',textAlign:'center',color:'var(--green)'}}>{p.correct}</td>
+                      {QUESTIONS.map(q=>(
+                        <td key={q.id} style={{padding:'6px 8px',textAlign:'center',color:'var(--muted)',maxWidth:80,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                          {p.answers?.[q.id]??'–'}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {participantCount===0 && <p style={{color:'var(--muted)',padding:16}}>Keine Daten</p>}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {toast && <div className="toast">{toast}</div>}
+    </div>
+  )
+}
