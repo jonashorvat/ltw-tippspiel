@@ -13,6 +13,8 @@ interface AdminData {
   results: MatchResult
   participants: Participant[]
   source: 'live' | 'manual'
+  codes: string[]
+  usedCodes: string[]
 }
 
 function randomAnswer(q: typeof QUESTIONS[0]): string {
@@ -31,7 +33,7 @@ function randomAnswer(q: typeof QUESTIONS[0]): string {
   return ''
 }
 
-type AdminTab = 'overview' | 'resolve' | 'data'
+type AdminTab = 'overview' | 'resolve' | 'codes' | 'data'
 
 export default function AdminPage() {
   const [data, setData] = useState<AdminData | null>(null)
@@ -40,6 +42,7 @@ export default function AdminPage() {
   const [toast, setToast] = useState('')
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [codesText, setCodesText] = useState('')
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(()=>setToast(''),2500) }
 
@@ -54,6 +57,7 @@ export default function AdminPage() {
           if (v !== null && v !== undefined) cleanAnswers[Number(k)] = v
         })
         setManualAnswers(cleanAnswers)
+        if (d.codes?.length > 0) setCodesText(d.codes.join('\n'))
       }
     } catch {}
   }, [])
@@ -84,6 +88,26 @@ export default function AdminPage() {
       showToast('❌ Netzwerkfehler beim Sync')
     }
     setSyncing(false)
+  }
+
+  const saveCodes = async () => {
+    const codes = codesText.split('\n').map(c => c.trim().toUpperCase()).filter(Boolean)
+    await post({ action:'set-codes', codes })
+    showToast(`${codes.length} Codes gespeichert ✓`)
+  }
+
+  const resetUsedCodes = async () => {
+    if (!confirm('Alle verwendeten Codes zurücksetzen? Codes können dann erneut genutzt werden.')) return
+    await post({ action:'reset-used-codes' })
+    showToast('Verwendete Codes zurückgesetzt ✓')
+  }
+
+  const generateCodes = (count: number) => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    const newCodes = Array.from({length: count}, () =>
+      Array.from({length: 6}, () => chars[Math.floor(Math.random()*chars.length)]).join('')
+    )
+    setCodesText(prev => prev ? prev+'\n'+newCodes.join('\n') : newCodes.join('\n'))
   }
 
   const toggleSource = async (source: 'live' | 'manual') => {
@@ -197,7 +221,7 @@ export default function AdminPage() {
 
         {/* INNER TABS */}
         <div style={{display:'flex',borderBottom:'1px solid var(--border)',marginBottom:20,gap:0}}>
-          {(['overview','resolve','data'] as AdminTab[]).map(t => (
+          {(['overview','resolve','codes','data'] as AdminTab[]).map(t => (
             <button key={t} onClick={()=>setTab(t)} style={{
               padding:'10px 18px',fontSize:13,fontWeight:600,cursor:'pointer',
               color:tab===t?'var(--accent)':'var(--muted)',
@@ -205,7 +229,7 @@ export default function AdminPage() {
               background:'transparent',border:'none',borderTop:'none',borderLeft:'none',borderRight:'none',
               fontFamily:'Barlow,sans-serif',marginBottom:'-1px',transition:'color .2s',
             }}>
-              {t==='overview'?'📊 Übersicht':t==='resolve'?'✅ Auflösen':'📋 Daten'}
+              {t==='overview'?'📊 Übersicht':t==='resolve'?'✅ Auflösen':t==='codes'?'🎟 Codes':'📋 Daten'}
             </button>
           ))}
         </div>
@@ -354,6 +378,62 @@ export default function AdminPage() {
               )
             })}
           </div>
+        )}
+
+        {/* CODES TAB */}
+        {tab === 'codes' && (
+          <>
+            <div className="card">
+              <div className="card-title">🎟 Teilnahme-Codes</div>
+              <p style={{fontSize:13,color:'var(--muted)',marginBottom:14}}>
+                Jeder Gast braucht einen einmaligen Code um teilzunehmen. Wenn keine Codes hinterlegt sind, ist die Teilnahme offen für alle.
+              </p>
+              <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
+                <button className="btn btn-ghost btn-sm" onClick={()=>generateCodes(50)}>✨ 50 Codes generieren</button>
+                <button className="btn btn-ghost btn-sm" onClick={()=>generateCodes(100)}>✨ 100 Codes generieren</button>
+                <button className="btn btn-ghost btn-sm" onClick={()=>generateCodes(300)}>✨ 300 Codes generieren</button>
+              </div>
+              <textarea
+                className="form-input"
+                style={{minHeight:200,fontFamily:'monospace',fontSize:13,letterSpacing:'1px'}}
+                placeholder={'Code pro Zeile, z.B.:\nTIGER42\nLION99\nEAGLE01'}
+                value={codesText}
+                onChange={e=>setCodesText(e.target.value)}
+              />
+              <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap',alignItems:'center'}}>
+                <button className="btn btn-primary" onClick={saveCodes} disabled={loading}>
+                  💾 Codes speichern
+                </button>
+                <button className="btn btn-danger btn-sm" onClick={resetUsedCodes}>
+                  🔄 Verwendete zurücksetzen
+                </button>
+                <span style={{fontSize:12,color:'var(--muted)'}}>
+                  {codesText.split('\n').filter(Boolean).length} Codes · {data?.usedCodes?.length ?? 0} verwendet
+                </span>
+              </div>
+            </div>
+            {(data?.codes?.length ?? 0) > 0 && (
+              <div className="card">
+                <div className="card-title">Status</div>
+                <div style={{display:'flex',gap:16,flexWrap:'wrap',fontSize:13}}>
+                  <span style={{color:'var(--muted)'}}>Gesamt: <b style={{color:'var(--text)'}}>{data?.codes?.length}</b></span>
+                  <span style={{color:'var(--muted)'}}>Verwendet: <b style={{color:'var(--accent)'}}>{data?.usedCodes?.length ?? 0}</b></span>
+                  <span style={{color:'var(--muted)'}}>Verfügbar: <b style={{color:'var(--green)'}}>{(data?.codes?.length ?? 0) - (data?.usedCodes?.length ?? 0)}</b></span>
+                </div>
+                <div style={{marginTop:12,display:'flex',flexWrap:'wrap',gap:6,maxHeight:200,overflowY:'auto'}}>
+                  {data?.codes?.map(c => (
+                    <span key={c} style={{
+                      padding:'3px 10px', borderRadius:20, fontFamily:'monospace', fontSize:12, fontWeight:700,
+                      background: data?.usedCodes?.includes(c) ? 'rgba(221,0,0,.1)' : 'var(--green-dim)',
+                      color: data?.usedCodes?.includes(c) ? '#ff6060' : 'var(--green)',
+                      border: `1px solid ${data?.usedCodes?.includes(c) ? 'rgba(221,0,0,.3)' : 'rgba(0,214,127,.3)'}`,
+                      textDecoration: data?.usedCodes?.includes(c) ? 'line-through' : 'none',
+                    }}>{c}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* DATA TAB */}
