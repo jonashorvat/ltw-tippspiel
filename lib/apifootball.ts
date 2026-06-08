@@ -1,4 +1,4 @@
-? Array.from(new Set(deScorers)).join(',')// lib/apifootball.ts
+// lib/apifootball.ts
 // Pulls live match data from API-Football and maps it to our answer format
 
 const API_KEY = process.env.API_FOOTBALL_KEY ?? ''
