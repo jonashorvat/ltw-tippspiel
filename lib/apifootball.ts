@@ -102,7 +102,7 @@ export async function fetchLiveData(): Promise<{
         return last
       })
     const scorersAnswer = deScorers.length > 0
-      ? [...new Set(deScorers)].join(',')
+      ? Array.from(new Set(deScorers)).join(',')
       : 'Kein Tor Deutschland'
 
     // --- Q8: Goal in first 10 min? ---
