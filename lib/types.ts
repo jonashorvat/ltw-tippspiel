@@ -47,7 +47,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: 3,
-    text: 'Wie viele Rote Karten gibt es?',
+    text: 'Wie viele Gelbe Karten gibt es insgesamt?',
     type: 'number',
     points: 4,
     pointsPartial: 2,
@@ -118,11 +118,11 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: 9,
-    text: 'Wie viele Gelbe Karten bekommt Deutschland?',
+    text: 'Wieviel % Ballbesitz hat Deutschland?',
     type: 'number',
-    points: 3,
-    pointsPartial: 1,
-    tolerance: 1,
+    points: 5,
+    pointsPartial: 2,
+    tolerance: 5,
   },
   {
     id: 10,
