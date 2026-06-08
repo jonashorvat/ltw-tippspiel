@@ -1,4 +1,4 @@
-// lib/apifootball.ts
+? Array.from(new Set(deScorers)).join(',')// lib/apifootball.ts
 // Pulls live match data from API-Football and maps it to our answer format
 
 const API_KEY = process.env.API_FOOTBALL_KEY ?? ''
@@ -102,7 +102,7 @@ export async function fetchLiveData(): Promise<{
         return last
       })
     const scorersAnswer = deScorers.length > 0
-      ? [...new Set(deScorers)].join(',')
+      ? Array.from(new Set(deScorers)).join(',')
       : 'Kein Tor Deutschland'
 
     // --- Q8: Goal in first 10 min? ---
