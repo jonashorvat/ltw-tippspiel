@@ -5,9 +5,57 @@ import { QUESTIONS } from '@/lib/types'
 import type { Participant, MatchResult } from '@/lib/types'
 
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY ?? 'ltw-admin-2024'
+const ADMIN_UI_PASSWORD = 'JonasHorvat'
 const DEMO_NAMES = ['Max Mustermann','Lena Koch','Tom Bauer','Sarah Braun','Kevin Wolf','Anna Klein','Florian Schwarz','Maria Weiß','Ben Schäfer','Julia Richter','Chris Berg','Laura Vogt','David Fuchs','Eva Hartmann','Nico Simon','Mia Lange','Jan Hoffmann','Sophie Krause','Felix Meyer','Hannah Zimmermann']
 
 const headers = { 'Content-Type':'application/json', 'x-admin-key':ADMIN_KEY }
+
+function LoginScreen({ onLogin }: { onLogin: () => void }) {
+  const [pw, setPw] = useState('')
+  const [error, setError] = useState(false)
+
+  const attempt = () => {
+    if (pw === ADMIN_UI_PASSWORD) {
+      sessionStorage.setItem('admin_auth', '1')
+      onLogin()
+    } else {
+      setError(true)
+      setPw('')
+      setTimeout(() => setError(false), 2000)
+    }
+  }
+
+  return (
+    <div style={{minHeight:'100vh',background:'var(--bg)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{width:'100%',maxWidth:380}}>
+        <div style={{textAlign:'center',marginBottom:32}}>
+          <div style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:900,fontSize:13,letterSpacing:'2px',color:'var(--muted)',textTransform:'uppercase',marginBottom:8}}>LightTheWorld</div>
+          <h1 style={{fontSize:28,marginBottom:4}}>Admin-Bereich</h1>
+          <p style={{color:'var(--muted)',fontSize:14}}>Bitte Kennwort eingeben</p>
+        </div>
+        <div className="card">
+          <div className="form-group">
+            <label className="form-label">Kennwort</label>
+            <input
+              className="form-input"
+              type="password"
+              placeholder="••••••••••"
+              value={pw}
+              onChange={e => setPw(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && attempt()}
+              autoFocus
+              style={error ? {borderColor:'#ff6060'} : {}}
+            />
+            {error && <p style={{color:'#ff6060',fontSize:13,marginTop:6}}>Falsches Kennwort</p>}
+          </div>
+          <button className="btn btn-primary btn-block" onClick={attempt}>
+            Einloggen →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 interface AdminData {
   results: MatchResult
@@ -25,10 +73,12 @@ function randomAnswer(q: typeof QUESTIONS[0]): string {
     if (q.id === 6) return String(Math.floor(Math.random()*15)+8)
     return String(Math.floor(Math.random()*10))
   }
-  if (q.type === 'multiselect') {
-    const opts = q.options ?? []
-    const count = Math.floor(Math.random()*3)+1
-    return [...opts].sort(()=>Math.random()-.5).slice(0,count).join(',')
+  if (q.type === 'scorer') {
+    const opts = (q.options ?? []).filter(o => o !== 'Keiner')
+    return Math.random() > 0.15 ? opts[Math.floor(Math.random()*opts.length)] : 'Keiner'
+  }
+  if (q.type === 'minute') {
+    return Math.random() > 0.15 ? String(Math.floor(Math.random()*90)+1) : 'Kein Tor'
   }
   return ''
 }
@@ -36,6 +86,17 @@ function randomAnswer(q: typeof QUESTIONS[0]): string {
 type AdminTab = 'overview' | 'resolve' | 'codes' | 'data'
 
 export default function AdminPage() {
+  const [authed, setAuthed] = useState(false)
+
+  useEffect(() => {
+    if (sessionStorage.getItem('admin_auth') === '1') setAuthed(true)
+  }, [])
+
+  if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />
+  return <AdminPanel />
+}
+
+function AdminPanel() {
   const [data, setData] = useState<AdminData | null>(null)
   const [tab, setTab] = useState<AdminTab>('overview')
   const [manualAnswers, setManualAnswers] = useState<Record<number,string>>({})
@@ -351,11 +412,12 @@ export default function AdminPage() {
                     </div>
                   )}
 
-                  {q.type==='multiselect' && (
+                  {q.type==='scorer' && (
                     <div>
+                      <p style={{fontSize:12,color:'var(--muted)',marginBottom:8}}>Mehrere Torschützen auswählbar — Gäste bekommen Punkte wenn ihr Tipp dabei ist.</p>
                       <div className="ms-grid" style={{marginBottom:8}}>
-                        {(q.options??[]).map(opt=>{
-                          const sel = (manualAnswers[q.id]??'').split(',').includes(opt)
+                        {(q.options??[]).filter(o=>o!=='Keiner').map(opt=>{
+                          const sel = (manualAnswers[q.id]??'').split(',').map(s=>s.trim()).includes(opt)
                           return (
                             <button key={opt}
                               className={`ms-btn ${sel?'selected':''}`}
@@ -368,10 +430,41 @@ export default function AdminPage() {
                             >{opt}</button>
                           )
                         })}
+                        <button
+                          className={`ms-btn ${(manualAnswers[q.id]??'')==='Keiner'?'selected':''}`}
+                          style={{fontSize:12,padding:'6px 10px',fontStyle:'italic'}}
+                          onClick={()=>setManualAnswers(p=>({...p,[q.id]:'Keiner'}))}
+                        >Keiner</button>
                       </div>
                       <button className="btn btn-green btn-sm" onClick={()=>setAnswer(q.id, manualAnswers[q.id]??'')} disabled={loading}>
                         ✓ Setzen
                       </button>
+                    </div>
+                  )}
+
+                  {q.type==='minute' && (
+                    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                      <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                        <input type="number" min={1} max={120} className="score-box" style={{width:70,fontSize:20}}
+                          placeholder="23"
+                          value={manualAnswers[q.id]==='Kein Tor' ? '' : (manualAnswers[q.id]??'')}
+                          disabled={manualAnswers[q.id]==='Kein Tor'}
+                          onChange={e=>setManualAnswers(p=>({...p,[q.id]:e.target.value}))}
+                        />
+                        <span style={{fontSize:13,color:'var(--muted)'}}>. Minute</span>
+                        <button className="btn btn-green btn-sm" onClick={()=>setAnswer(q.id, manualAnswers[q.id]??'')} disabled={loading}>
+                          ✓ Setzen
+                        </button>
+                      </div>
+                      <button
+                        className={`option-btn ${manualAnswers[q.id]==='Kein Tor'?'selected':''}`}
+                        style={{maxWidth:160,fontSize:13,padding:'7px'}}
+                        onClick={()=>{
+                          const next = manualAnswers[q.id]==='Kein Tor' ? '' : 'Kein Tor'
+                          setManualAnswers(p=>({...p,[q.id]:next}))
+                          if(next==='Kein Tor') setAnswer(q.id,'Kein Tor')
+                        }}
+                      >Kein Tor im Spiel</button>
                     </div>
                   )}
                 </div>
