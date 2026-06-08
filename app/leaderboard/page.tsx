@@ -14,7 +14,13 @@ const STATUS_LABEL: Record<string, string> = {
   FT: 'Abgepfiffen', ET: 'Verlängerung', P: 'Elfmeterschießen',
 }
 
-export default function LeaderboardPage() {
+const PRIZES: Record<number, { emoji: string; label: string; color: string; border: string; bg: string }> = {
+  1: { emoji: '🧥', label: 'Pulli',         color: '#FFD700', border: 'rgba(255,215,0,.5)',   bg: 'rgba(255,215,0,.12)' },
+  2: { emoji: '👕', label: 'Shirt',          color: '#C0C0D8', border: 'rgba(192,192,216,.5)', bg: 'rgba(192,192,216,.1)' },
+  3: { emoji: '🧦', label: 'Socken',         color: '#CD7F32', border: 'rgba(205,127,50,.5)',  bg: 'rgba(205,127,50,.1)' },
+  4: { emoji: '🏷️', label: '50% Rabatt',    color: '#00d67f', border: 'rgba(0,214,127,.4)',   bg: 'rgba(0,214,127,.1)' },
+  5: { emoji: '🏷️', label: '25% Rabatt',    color: '#00d67f', border: 'rgba(0,214,127,.3)',   bg: 'rgba(0,214,127,.08)' },
+}
   const [data, setData] = useState<ApiData | null>(null)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [myName, setMyName] = useState<string>('')
@@ -165,17 +171,36 @@ export default function LeaderboardPage() {
               const rankClass = i===0?'gold':i===1?'silver':i===2?'bronze':''
               const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':null
               const answeredCount = Object.keys(p.answers ?? {}).length
+              const prize = PRIZES[i+1]
               return (
                 <div key={p.id} className={`lb-row ${rankClass}`} style={isMe ? {
                   border:'2px solid var(--accent)',
                   background:'linear-gradient(135deg,rgba(255,206,0,.2),rgba(255,206,0,.08))',
                   transform:'scale(1.02)',
                   boxShadow:'0 0 20px rgba(255,206,0,.15)',
+                } : prize ? {
+                  background: prize.bg,
+                  borderColor: prize.border,
                 } : {}}>
                   <div className="lb-rank">{medal ?? (i+1)}</div>
-                  <div className="lb-name">
-                    {p.name}
-                    {isMe && <span style={{marginLeft:6,fontSize:11,color:'var(--accent)',fontWeight:700}}>← DU</span>}
+                  <div className="lb-name" style={{display:'flex',flexDirection:'column',gap:3}}>
+                    <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                      {p.name}
+                      {isMe && <span style={{fontSize:11,color:'var(--accent)',fontWeight:700}}>← DU</span>}
+                    </div>
+                    {prize && (
+                      <span style={{
+                        display:'inline-flex',alignItems:'center',gap:4,
+                        fontSize:11,fontWeight:700,
+                        color: prize.color,
+                        background: prize.bg,
+                        border:`1px solid ${prize.border}`,
+                        borderRadius:20,padding:'1px 8px',
+                        width:'fit-content',
+                      }}>
+                        {prize.emoji} {prize.label}
+                      </span>
+                    )}
                   </div>
                   <div className="lb-pts">{p.points}</div>
                   <div className="lb-correct">{p.correct}✓</div>
@@ -185,6 +210,22 @@ export default function LeaderboardPage() {
             })}
           </>
         )}
+
+        {/* PRIZES LEGEND */}
+        <div style={{marginTop:24,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'16px 20px'}}>
+          <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',color:'var(--muted)',marginBottom:12}}>🎁 Preise</div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {Object.entries(PRIZES).map(([rank, prize]) => (
+              <div key={rank} style={{display:'flex',alignItems:'center',gap:10}}>
+                <span style={{
+                  fontFamily:'Barlow Condensed,sans-serif',fontWeight:900,fontSize:16,
+                  width:24,textAlign:'center',color:prize.color,
+                }}>{rank === '1' ? '🥇' : rank === '2' ? '🥈' : rank === '3' ? '🥉' : `#${rank}`}</span>
+                <span style={{fontSize:13,fontWeight:600,color:prize.color}}>{prize.emoji} {prize.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )
