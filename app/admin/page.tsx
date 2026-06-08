@@ -49,7 +49,11 @@ export default function AdminPage() {
       if (res.ok) {
         const d = await res.json() as AdminData
         setData(d)
-        setManualAnswers(d.results?.answers ?? {})
+        const cleanAnswers: Record<number, string> = {}
+        Object.entries(d.results?.answers ?? {}).forEach(([k, v]) => {
+          if (v !== null && v !== undefined) cleanAnswers[Number(k)] = v
+        })
+        setManualAnswers(cleanAnswers)
       }
     } catch {}
   }, [])
