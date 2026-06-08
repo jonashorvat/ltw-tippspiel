@@ -35,51 +35,53 @@ export const QUESTIONS: Question[] = [
     id: 1,
     text: 'Wie lautet der Endstand?',
     type: 'score',
-    points: 5,
-    pointsPartial: 2,
+    points: 10,
+    pointsPartial: 3,
   },
   {
     id: 2,
     text: 'Wie steht es zur Halbzeit?',
     type: 'score',
-    points: 4,
+    points: 7,
     pointsPartial: 2,
   },
   {
     id: 3,
-    text: 'Gibt es eine Rote Karte?',
-    type: 'yn',
-    points: 3,
-    options: ['Ja', 'Nein'],
+    text: 'Wie viele Rote Karten gibt es?',
+    type: 'number',
+    points: 4,
+    pointsPartial: 2,
+    tolerance: 1,
   },
   {
     id: 4,
-    text: 'Gibt es einen Elfmeter im Spiel?',
-    type: 'yn',
-    points: 3,
-    options: ['Ja', 'Nein'],
+    text: 'Wie viele Elfmeter gibt es?',
+    type: 'number',
+    points: 4,
+    pointsPartial: 2,
+    tolerance: 1,
   },
   {
     id: 5,
     text: 'Anzahl Ecken Deutschland',
     type: 'number',
-    points: 3,
-    pointsPartial: 1,
+    points: 4,
+    pointsPartial: 2,
     tolerance: 1,
   },
   {
     id: 6,
     text: 'Anzahl Fouls insgesamt',
     type: 'number',
-    points: 3,
-    pointsPartial: 1,
+    points: 4,
+    pointsPartial: 2,
     tolerance: 3,
   },
   {
     id: 7,
     text: 'Welcher Deutsche schießt mindestens 1 Tor?',
     type: 'scorer',
-    points: 4,
+    points: 8,
     options: [
       'Kai Havertz',
       'Leroy Sané',
@@ -116,17 +118,18 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: 9,
-    text: 'Gibt es eine Gelbe Karte für Deutschland?',
-    type: 'yn',
-    points: 2,
-    options: ['Ja', 'Nein'],
+    text: 'Wie viele Gelbe Karten bekommt Deutschland?',
+    type: 'number',
+    points: 3,
+    pointsPartial: 1,
+    tolerance: 1,
   },
   {
     id: 10,
     text: 'In welcher Minute fällt das erste Tor?',
     type: 'minute',
-    points: 4,
-    pointsPartial: 2,
+    points: 6,
+    pointsPartial: 3,
     tolerance: 5,
   },
 ]
@@ -164,8 +167,6 @@ export function calcPoints(
         else if (Math.abs(r - a) <= (q.tolerance ?? 0)) points += q.pointsPartial ?? 0
       }
     } else if (q.type === 'scorer') {
-      // result = comma-separated actual scorers (admin sets multiple)
-      // answer = single player name chosen by guest (or 'Keiner')
       const scorers = result.split(',').map(s => s.trim()).filter(Boolean)
       const noGoal = scorers.length === 0 || (scorers.length === 1 && scorers[0] === 'Keiner')
       if (answer === 'Keiner' && noGoal) {
@@ -174,10 +175,8 @@ export function calcPoints(
         points += q.points; correct++
       }
     } else if (q.type === 'minute') {
-      // result: minute number as string, or 'Kein Tor'
-      // answer: minute number as string, or 'Kein Tor'
       if (result === 'Kein Tor' && answer === 'Kein Tor') {
-        points += 3; correct++
+        points += 4; correct++
       } else if (result !== 'Kein Tor' && answer !== 'Kein Tor') {
         const r = parseInt(result)
         const a = parseInt(answer)
@@ -187,7 +186,6 @@ export function calcPoints(
         }
       }
     } else {
-      // yn
       if (answer.trim().toLowerCase() === result.trim().toLowerCase()) {
         points += q.points; correct++
       }
