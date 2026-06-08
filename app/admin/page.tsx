@@ -39,6 +39,7 @@ export default function AdminPage() {
   const [manualAnswers, setManualAnswers] = useState<Record<number,string>>({})
   const [toast, setToast] = useState('')
   const [loading, setLoading] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(()=>setToast(''),2500) }
 
@@ -62,6 +63,23 @@ export default function AdminPage() {
       await fetchData()
     } catch {}
     setLoading(false)
+  }
+
+  const manualSync = async () => {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/live-sync-manual', { method:'POST', headers })
+      const d = await res.json()
+      if (d.ok) {
+        showToast(`✅ Sync erfolgreich · Status: ${d.matchStatus ?? '?'}`)
+      } else {
+        showToast('⚠️ Sync fehlgeschlagen: ' + (d.error ?? 'Unbekannt'))
+      }
+      await fetchData()
+    } catch {
+      showToast('❌ Netzwerkfehler beim Sync')
+    }
+    setSyncing(false)
   }
 
   const toggleSource = async (source: 'live' | 'manual') => {
@@ -153,9 +171,13 @@ export default function AdminPage() {
               {isLive ? '● LIVE – API-Football' : '✏ Manuelle Eingabe aktiv'}
             </span>
             {isLive && (
-              <span style={{fontSize:12,color:'var(--muted)'}}>
-                Automatisch alle 60s · Cron läuft
-              </span>
+              <button
+                className="btn btn-green btn-sm"
+                onClick={manualSync}
+                disabled={syncing}
+              >
+                {syncing ? '⏳ Lädt…' : '🔄 Jetzt syncen'}
+              </button>
             )}
           </div>
           {isLive && data?.results?.matchStatus && (
