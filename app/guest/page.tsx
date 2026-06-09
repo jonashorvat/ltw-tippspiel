@@ -230,7 +230,8 @@ export default function GuestPage() {
               Viel Glück, {submittedName}!<br />Verfolge die Rangliste live auf dem Bildschirm.
             </p>
             <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
-              <a href="/leaderboard" className="btn btn-primary">🏆 Zur Rangliste</a>
+              <a href="/meine-tipps" className="btn btn-primary">📊 Meine Tipps</a>
+              <a href="/leaderboard" className="btn btn-ghost">🏆 Zur Rangliste</a>
               <button className="btn btn-ghost" onClick={reset}>Nächster Teilnehmer</button>
             </div>
           </div>
