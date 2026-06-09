@@ -1,6 +1,6 @@
 'use client'
 // app/admin/page.tsx
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { QUESTIONS } from '@/lib/types'
 import type { Participant, MatchResult } from '@/lib/types'
 
@@ -104,6 +104,13 @@ function AdminPanel() {
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [codesText, setCodesText] = useState('')
+  const [autoRunning, setAutoRunning] = useState(false)
+  const [countdown, setCountdown] = useState(0)
+  const [syncCount, setSyncCount] = useState(0)
+  const autoRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const countRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const SYNC_INTERVAL = 90 // seconds
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(()=>setToast(''),2500) }
 
@@ -134,22 +141,56 @@ function AdminPanel() {
     setLoading(false)
   }
 
-  const manualSync = async () => {
+  const doSync = useCallback(async () => {
     setSyncing(true)
     try {
       const res = await fetch('/api/live-sync-manual', { method:'POST', headers })
       const d = await res.json()
       if (d.ok) {
-        showToast(`✅ Sync erfolgreich · Status: ${d.matchStatus ?? '?'}`)
+        setSyncCount(c => c + 1)
+        showToast(`✅ Sync · Status: ${d.matchStatus ?? '?'}`)
       } else {
-        showToast('⚠️ Sync fehlgeschlagen: ' + (d.error ?? 'Unbekannt'))
+        showToast('⚠️ ' + (d.error ?? 'Sync fehlgeschlagen'))
       }
       await fetchData()
     } catch {
       showToast('❌ Netzwerkfehler beim Sync')
     }
     setSyncing(false)
-  }
+  }, [fetchData])
+
+  const manualSync = async () => { await doSync() }
+
+  const startAutoSync = useCallback(() => {
+    setAutoRunning(true)
+    setSyncCount(0)
+    setCountdown(SYNC_INTERVAL)
+    doSync()
+    // Countdown tick
+    countRef.current = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) return SYNC_INTERVAL
+        return c - 1
+      })
+    }, 1000)
+    // Auto sync every 90s
+    autoRef.current = setInterval(() => {
+      doSync()
+      setCountdown(SYNC_INTERVAL)
+    }, SYNC_INTERVAL * 1000)
+  }, [doSync])
+
+  const stopAutoSync = useCallback(() => {
+    setAutoRunning(false)
+    setCountdown(0)
+    if (autoRef.current) clearInterval(autoRef.current)
+    if (countRef.current) clearInterval(countRef.current)
+  }, [])
+
+  useEffect(() => () => {
+    if (autoRef.current) clearInterval(autoRef.current)
+    if (countRef.current) clearInterval(countRef.current)
+  }, [])
 
   const saveCodes = async () => {
     const codes = codesText.split('\n').map(c => c.trim().toUpperCase()).filter(Boolean)
@@ -260,14 +301,51 @@ function AdminPanel() {
               {isLive ? '● LIVE – API-Football' : '✏ Manuelle Eingabe aktiv'}
             </span>
             {isLive && (
-              <button
-                className="btn btn-green btn-sm"
-                onClick={manualSync}
-                disabled={syncing}
-              >
-                {syncing ? '⏳ Lädt…' : '🔄 Jetzt syncen'}
-              </button>
-            )}
+            <div style={{marginTop:14,background:'var(--bg)',border:'1px solid var(--border)',borderRadius:10,padding:'14px 16px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+                <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                  {!autoRunning ? (
+                    <button className="btn btn-green" onClick={startAutoSync} disabled={syncing}>
+                      ▶ Auto-Sync starten
+                    </button>
+                  ) : (
+                    <button className="btn btn-danger" onClick={stopAutoSync}>
+                      ■ Auto-Sync stoppen
+                    </button>
+                  )}
+                  <button className="btn btn-ghost btn-sm" onClick={manualSync} disabled={syncing}>
+                    {syncing ? '⏳' : '🔄'} Jetzt
+                  </button>
+                </div>
+                <div style={{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap'}}>
+                  {autoRunning && (
+                    <div style={{textAlign:'center'}}>
+                      <div style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:24,fontWeight:900,color:'var(--accent)',lineHeight:1}}>{countdown}s</div>
+                      <div style={{fontSize:10,color:'var(--muted)'}}>nächster Sync</div>
+                    </div>
+                  )}
+                  <div style={{textAlign:'center'}}>
+                    <div style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:24,fontWeight:900,lineHeight:1}}>{syncCount}</div>
+                    <div style={{fontSize:10,color:'var(--muted)'}}>Syncs heute</div>
+                  </div>
+                  <div style={{textAlign:'center'}}>
+                    <div style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:24,fontWeight:900,color: syncCount > 80 ? '#ff6060' : syncCount > 60 ? '#FFCE00' : 'var(--green)',lineHeight:1}}>{100 - syncCount}</div>
+                    <div style={{fontSize:10,color:'var(--muted)'}}>verbleibend</div>
+                  </div>
+                </div>
+              </div>
+              {autoRunning && (
+                <div style={{marginTop:10}}>
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{width:`${((SYNC_INTERVAL - countdown) / SYNC_INTERVAL) * 100}%`, background: 'var(--green)'}} />
+                  </div>
+                </div>
+              )}
+              <div style={{marginTop:8,fontSize:11,color:'var(--muted)'}}>
+                Alle 90 Sek · ~70 Requests pro Spiel · Free Limit: 100/Tag
+              </div>
+            </div>
+          )}
           </div>
           {isLive && data?.results?.matchStatus && (
             <div style={{marginTop:12,display:'flex',gap:16,flexWrap:'wrap',fontSize:13}}>
